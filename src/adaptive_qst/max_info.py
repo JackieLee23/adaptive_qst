@@ -33,6 +33,7 @@ class Posterior:
     possible_results = [0, 1]
     default_config = [pi/2, pi/2]
     config_bounds = [[0, pi], [0, pi]]
+    resampling_tolerance = 0.1
     dims = 2
     
     def __init__(self, n_particles = 100):
@@ -50,7 +51,7 @@ class Posterior:
         orient_unitary = orient_measure(configuration)
         rotated_states = orient_unitary @ particle_states @ get_adjoint(orient_unitary)
         
-        return np.abs(rotated_states[:, result, result]) ** 2
+        return np.real(rotated_states[:, result, result])
     
     def update_weights(self, configuration, result):
         posterior = self.get_likelihood(configuration, result, self.particle_states) * self.particle_weights
@@ -58,12 +59,12 @@ class Posterior:
 
     def get_best_guess(self):
         return np.sum(self.particle_states * self.particle_weights[:, np.newaxis, np.newaxis], axis = 0)
-        
+ 
     def get_info_gain(self, configuration):
         likelihoods = self.get_likelihood(configuration, self.possible_results, self.particle_states)
         
-        posterior = self.particle_weights[:, np.newaxis] * likelihoods
-        uniformity = entropy(np.sum(posterior, axis = 0))
+        avg_predictive_prob = np.sum(likelihoods * self.particle_weights[:, np.newaxis], axis = 0)
+        uniformity = entropy(avg_predictive_prob)
         
         confidence = -np.sum(entropy(likelihoods) * self.particle_weights)
         return uniformity + confidence
@@ -115,7 +116,7 @@ class Posterior:
         return log_likelihoods
     
     def draw_next_pos(self):
-        random_vecs = np.random.normal(size = (self.n_particles, self.dims ** 2)) + np.random.normal(self.n_particles, self.dims ** 2) * 1j
+        random_vecs = np.random.normal(size = (self.n_particles, self.dims ** 2)) + np.random.normal(size = (self.n_particles, self.dims ** 2)) * 1j
 
         overlaps = np.einsum('ij,ij->i', np.conjugate(self.purified_states), random_vecs)
 
@@ -125,12 +126,14 @@ class Posterior:
 
         step_vecs /= step_norms[:, np.newaxis]
 
-        a = 1 - np.abs(np.random.normal(scale = self.posterior_size, size = self.n_particles))
+        a = 1 - (np.random.normal(scale = self.posterior_size, size = self.n_particles) ** 2) / 2
         a[(a < 0)] = 0
 
         b = sqrt(1 - a ** 2)
 
         next_purified = a[:, np.newaxis] * self.purified_states + b[:, np.newaxis] * step_vecs
+
+        next_purified /= np.linalg.norm(next_purified, axis = 1)[:, np.newaxis]
 
         return next_purified, self.get_traced_out(next_purified)
     
@@ -167,25 +170,21 @@ class Posterior:
     #Main interacting function
     def update(self, config, result):
         self.update_weights(config, result)
+        self.config_arr.append(config)
+        self.result_arr.append(result)
 
-        if self.get_pos
+        if self.get_effective_sample_size() < (self.resampling_tolerance * self.n_particles):
+            #print(f"Resampling with MC")
+            self.resample()
 
-
-
-
-
-    
-    
-    
-        
-        
-        
+   
 class HiddenState:
     def __init__(self, hidden_state = None):
-        if hidden_state == None:
-            hidden_state = random_density_matrix(2)
+        if hidden_state is None:
+            hidden_state = random_density_matrix(2).data
         self.hidden_state = hidden_state
-        
+    
+    #Returns 0 for spin UP along axis, 1 for spin DOWN along axis!
     def measure_along_axis(self, configuration):
         orient_unitary = orient_measure(configuration)
         
