@@ -165,7 +165,8 @@ class Posterior:
 
         for i in range(n_steps): self.mc_step()
 
-        self.update_weight_sequence()
+        ##This step is not done in the paper!!
+        #self.update_weight_sequence() 
     
     #Main interacting function
     def update(self, config, result):
