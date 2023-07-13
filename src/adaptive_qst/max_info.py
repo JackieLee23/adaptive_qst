@@ -33,15 +33,15 @@ class Posterior:
     possible_results = [0, 1]
     default_config = [pi/2, pi/2]
     config_bounds = [[0, pi], [0, pi]]
-    resampling_tolerance = 0.1
     dims = 2
     
-    def __init__(self, n_particles = 100):
+    def __init__(self, n_particles = 100, resampling_tolerance = 0.1):
         self.n_particles = n_particles
         self.particle_states, self.particle_weights = self.initialize_particles()
         
         self.config_arr = []
         self.result_arr = []
+        self.resampling_tolerance = resampling_tolerance
         
     def initialize_particles(self):
         return np.array([random_density_matrix(self.dims).data for i in range(self.n_particles)]), np.ones(self.n_particles) / self.n_particles
